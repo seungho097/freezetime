@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>액체 냉동 시간 계산기</title>
+<style>
+  :root {
+    --bg-color: #0a0a0a;
+    --card-color: #111111;
+    --text-primary: #ffffff;
+    --text-secondary: #8a8a8a;
+    --border-color: #2a2a2a;
+    --accent-bg: #1a1a1a;
+    --accent-border: #3a3a3a;
+    --radius-xl: 24px;
+    --radius-md: 12px;
+    --transition-fast: 0.18s ease;
+    --transition-slow: 0.28s ease;
+    --font-stack: -apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",Arial,sans-serif;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    font-family: var(--font-stack);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+
+  .shell {
+    width: 100%;
+    max-width: 420px;
+    background: radial-gradient(circle at 20% 20%,rgba(255,255,255,0.07) 0%,rgba(0,0,0,0) 70%);
+    border-radius: var(--radius-xl);
+    padding: 2px;
+    box-shadow:
+      0 30px 80px rgba(0,0,0,0.9),
+      0 4px 16px rgba(0,0,0,0.6),
+      0 0 80px rgba(255,255,255,0.05) inset;
+  }
+
+  .card {
+    background: var(--card-color);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border-color);
+    padding: 2rem clamp(1.5rem,2vw,2rem) 2rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 520px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .headline {
+    font-size: clamp(1.25rem, 1.1vw, 1.4rem);
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    color: var(--text-primary);
+    line-height: 1.2;
+  }
+
+  .subhead {
+    margin-top: .75rem;
+    font-size: .9rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    font-weight: 400;
+  }
+
+  /* step container */
+  .steps-wrapper {
+    flex: 1;
+    position: relative;
+  }
+
+  .step-view {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(12px);
+    transition: opacity var(--transition-slow), transform var(--transition-slow);
+  }
+
+  .step-view.active {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  .step-label {
+    font-size: .75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .step-label .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    height: 1.5rem;
+    padding: 0 .5rem;
+    border-radius: var(--radius-md);
+    background-color: var(--accent-bg);
+    border: 1px solid var(--accent-border);
+    color: var(--text-primary);
+    font-size: .7rem;
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  /* volume section */
+  .volume-box {
+    background-color: var(--accent-bg);
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius-md);
+    padding: 1rem 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .volume-topline {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  .volume-topline-left {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .label-sm {
+    font-size: .75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    letter-spacing: -0.02em;
+  }
+
+  .current-volume {
+    font-size: 1.4rem;
+    line-height: 1.2;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.03em;
+  }
+
+  .range-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    appearance: none;
+    height: 4px;
+    background: linear-gradient(to right,#fff 0%,#fff 50%,rgba(255,255,255,0.15) 50%,rgba(255,255,255,0.15) 100%);
+    border-radius: 999px;
+    outline: none;
+    border: none;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: 0;
+    box-shadow: 0 8px 24px rgba(255,255,255,0.35);
+    cursor: pointer;
+  }
+
+  .range-scale {
+    display: flex;
+    justify-content: space-between;
+    font-size: .7rem;
+    color: var(--text-secondary);
+    line-height: 1;
+  }
+
+  /* liquid selection grid */
+  .liquid-grid {
+    display: grid;
+    grid-template-columns: repeat(2,1fr);
+    gap: .75rem;
+  }
+
+  .liquid-btn {
+    border-radius: var(--radius-md);
+    background-color: var(--accent-bg);
+    border: 1px solid var(--accent-border);
+    padding: 1rem;
+    text-align: left;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+
+  .liquid-btn[data-active="true"] {
+    border-color: #ffffff;
+    box-shadow: 0 20px 50px rgba(255,255,255,0.12);
+  }
+
+  .liquid-name {
+    font-size: .95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: -0.03em;
+    line-height: 1.3;
+  }
+
+  .liquid-factor {
+    font-size: .7rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    margin-top: .4rem;
+  }
+
+  /* result block */
+  .result-box {
+    background: radial-gradient(circle at 0% 0%,rgba(255,255,255,0.08) 0%,rgba(0,0,0,0) 70%);
+    background-color: var(--accent-bg);
+    border: 1px solid var(--accent-border);
+    border-radius: var(--radius-md);
+    padding: 1.5rem 1.25rem 1.25rem;
+  }
+
+  .result-title {
+    font-size: .8rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    margin-bottom: .75rem;
+  }
+
+  .result-time {
+    font-size: 1.8rem;
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.2;
+    color: var(--text-primary);
+    word-break: keep-all;
+  }
+
+  .result-detail {
+    font-size: .8rem;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    margin-top: .75rem;
+  }
+
+  /* footer nav buttons */
+  .footer-nav {
+    margin-top: 2rem;
+    display: flex;
+    justify-content: space-between;
+    gap: .75rem;
+  }
+
+  .btn-nav {
+    flex: 1;
+    font-family: inherit;
+    font-size: .9rem;
+    font-weight: 600;
+    line-height: 1.2;
+    border-radius: var(--radius-md);
+    padding: .9rem 1rem;
+    background-color: #ffffff;
+    color: #000000;
+    border: none;
+    cursor: pointer;
+    text-align: center;
+    transition: all var(--transition-fast);
+  }
+
+  .btn-nav[disabled] {
+    background-color: rgba(255,255,255,0.1);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+  }
+
+  .btn-outline {
+    background-color: transparent;
+    color: var(--text-primary);
+    border: 1px solid var(--accent-border);
+  }
+
+  .btn-nav:not([disabled]):active {
+    transform: scale(.98);
+  }
+
+  /* tiny note */
+  .disclaimer {
+    margin-top: 1.5rem;
+    color: var(--text-secondary);
+    font-size: .7rem;
+    line-height: 1.5;
+    text-align: center;
+  }
+
+  /* small devices spacing tweak */
+  @media (max-width: 360px){
+    .card{
+      min-height: 560px;
+      padding:1.5rem 1rem 1.5rem;
+    }
+    .headline{
+      font-size:1.1rem;
+    }
+    .current-volume{
+      font-size:1.25rem;
+    }
+    .result-time{
+      font-size:1.6rem;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div class="card">
+
+    <header>
+      <div class="headline">액체가 어는 시간을 알려드립니다</div>
+      <div class="subhead">용량과 액체 종류를 선택하면 예상 냉동 시간을 계산합니다.</div>
+    </header>
+
+    <div class="steps-wrapper">
+      <!-- STEP 1: volume -->
+      <section class="step-view active" id="step-1">
+        <div class="step-label">
+          <span class="badge">STEP 1</span>
+          <span>용량을 선택하세요</span>
+        </div>
+
+        <div class="volume-box">
+          <div class="volume-topline">
+            <div class="volume-topline-left">
+              <span class="label-sm">현재 용량</span>
+              <span class="current-volume"><span id="volumeValue">500</span> mL</span>
+            </div>
+            <div class="label-sm" style="text-align:right;">
+              10 mL 단위
+            </div>
+          </div>
+
+          <div class="range-wrap">
+            <input
+              id="volumeRange"
+              type="range"
+              min="10"
+              max="1000"
+              step="10"
+              value="500"
+            />
+            <div class="range-scale">
+              <span>10 mL</span>
+              <span>1000 mL</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-nav">
+          <button class="btn-nav btn-outline" disabled>이전</button>
+          <button class="btn-nav" id="toStep2">다음 단계</button>
+        </div>
+      </section>
+
+      <!-- STEP 2: liquid -->
+      <section class="step-view" id="step-2">
+        <div class="step-label">
+          <span class="badge">STEP 2</span>
+          <span>액체 종류를 고르세요</span>
+        </div>
+
+        <div class="liquid-grid" id="liquidGrid">
+          <button class="liquid-btn" data-type="water">
+            <div class="liquid-name">물</div>
+            <div class="liquid-factor">보정계수 1.00</div>
+          </button>
+
+          <button class="liquid-btn" data-type="soda">
+            <div class="liquid-name">탄산음료</div>
+            <div class="liquid-factor">보정계수 1.20</div>
+          </button>
+
+          <button class="liquid-btn" data-type="juice">
+            <div class="liquid-name">과일주스</div>
+            <div class="liquid-factor">보정계수 1.10</div>
+          </button>
+
+          <button class="liquid-btn" data-type="milk">
+            <div class="liquid-name">우유</div>
+            <div class="liquid-factor">보정계수 1.15</div>
+          </button>
+
+          <button class="liquid-btn" data-type="sugarwater" style="grid-column: span 2;">
+            <div class="liquid-name">설탕물</div>
+            <div class="liquid-factor">보정계수 1.40</div>
+          </button>
+        </div>
+
+        <div class="footer-nav">
+          <button class="btn-nav btn-outline" id="backTo1">이전</button>
+          <button class="btn-nav" id="toStep3" disabled>결과 보기</button>
+        </div>
+      </section>
+
+      <!-- STEP 3: result -->
+      <section class="step-view" id="step-3">
+        <div class="step-label">
+          <span class="badge">STEP 3</span>
+          <span>예상 냉동 시간</span>
+        </div>
+
+        <div class="result-box">
+          <div class="result-title">예상 냉동 시간</div>
+          <div class="result-time" id="resultTime">-</div>
+          <div class="result-detail" id="resultDetail">
+            용량, 액체 정보를 기반으로 계산합니다.
+          </div>
+        </div>
+
+        <div class="footer-nav">
+          <button class="btn-nav btn-outline" id="backTo2">이전</button>
+          <button class="btn-nav" id="againBtn">다시 계산</button>
+        </div>
+
+        <div class="disclaimer">
+          ※ 단순 추정값입니다. 실제 환경(냉동실 온도, 용기 재질 등)에 따라 달라질 수 있습니다.
+        </div>
+      </section>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  // 상태 관리
+  const state = {
+    volumeMl: 500,
+    liquidType: null,
+  };
+
+  // 보정계수 매핑
+  const factors = {
+    water: 1,
+    soda: 1.2,
+    juice: 1.1,
+    milk: 1.15,
+    sugarwater: 1.4,
+  };
+
+  const liquidLabel = {
+    water: "물",
+    soda: "탄산음료",
+    juice: "과일주스",
+    milk: "우유",
+    sugarwater: "설탕물",
+  };
+
+  // DOM 엘리먼트
+  const volumeRange = document.getElementById("volumeRange");
+  const volumeValue = document.getElementById("volumeValue");
+
+  const step1 = document.getElementById("step-1");
+  const step2 = document.getElementById("step-2");
+  const step3 = document.getElementById("step-3");
+
+  const toStep2 = document.getElementById("toStep2");
+  const backTo1 = document.getElementById("backTo1");
+  const toStep3 = document.getElementById("toStep3");
+  const backTo2 = document.getElementById("backTo2");
+  const againBtn = document.getElementById("againBtn");
+
+  const liquidGrid = document.getElementById("liquidGrid");
+
+  const resultTimeEl = document.getElementById("resultTime");
+  const resultDetailEl = document.getElementById("resultDetail");
+
+  // Step 전환 함수
+  function showStep(n) {
+    [step1, step2, step3].forEach((el, idx) => {
+      if (idx === n - 1) {
+        el.classList.add("active");
+      } else {
+        el.classList.remove("active");
+      }
+    });
+  }
+
+  // 볼륨 슬라이더 업데이트
+  function updateVolume(val) {
+    state.volumeMl = parseInt(val, 10);
+    volumeValue.textContent = state.volumeMl;
+    // 슬라이더 배경(채워진 부분 효과) 업데이트
+    const min = parseInt(volumeRange.min,10);
+    const max = parseInt(volumeRange.max,10);
+    const percent = ((state.volumeMl - min) / (max - min)) * 100;
+    volumeRange.style.background = `
+      linear-gradient(
+        to right,
+        #fff 0%,
+        #fff ${percent}%,
+        rgba(255,255,255,0.15) ${percent}%,
+        rgba(255,255,255,0.15) 100%
+      )
+    `;
+  }
+
+  volumeRange.addEventListener("input", (e) => {
+    updateVolume(e.target.value);
+  });
+
+  // 최초 초기화
+  updateVolume(volumeRange.value);
+
+  // 액체 선택 처리
+  liquidGrid.addEventListener("click", (e) => {
+    const btn = e.target.closest(".liquid-btn");
+    if (!btn) return;
+
+    const type = btn.getAttribute("data-type");
+    state.liquidType = type;
+
+    // active 표시 갱신
+    [...liquidGrid.querySelectorAll(".liquid-btn")].forEach(b => {
+      b.setAttribute("data-active","false");
+    });
+    btn.setAttribute("data-active","true");
+
+    // step3로 가는 버튼 활성화
+    toStep3.disabled = false;
+  });
+
+  // 계산 함수
+  function calculateFreezeTime(volumeMl, liquidType) {
+    // 수식: 시간(시간 단위) = (0.0027 × 용량(mL) + 2.5) × 보정계수
+    const factor = factors[liquidType];
+    const totalHours = (0.0027 * volumeMl + 2.5) * factor;
+
+    // 시/분 변환
+    let hours = Math.floor(totalHours);
+    let minutes = Math.round((totalHours - hours) * 60);
+
+    // 반올림 때문에 60분 되는 경우 정리
+    if (minutes === 60) {
+      hours += 1;
+      minutes = 0;
+    }
+
+    // 사람이 읽는 형태 만들기
+    let pretty = "";
+    if (hours <= 0) {
+      // 1시간 미만이면 분만
+      pretty = `${minutes}분`;
+    } else {
+      if (minutes > 0) {
+        pretty = `${hours}시간 ${minutes}분`;
+      } else {
+        pretty = `${hours}시간`;
+      }
+    }
+
+    return {
+      pretty,
+      rawHours: totalHours
+    };
+  }
+
+  // 결과 업데이트
+  function updateResultView() {
+    if (!state.liquidType) {
+      resultTimeEl.textContent = "-";
+      resultDetailEl.textContent = "용량, 액체 정보를 기반으로 계산합니다.";
+      return;
+    }
+
+    const { pretty, rawHours } = calculateFreezeTime(state.volumeMl, state.liquidType);
+
+    resultTimeEl.textContent = pretty;
+    resultDetailEl.innerHTML =
+      `추정치입니다.<br>` +
+      `용량 ${state.volumeMl} mL, ` +
+      `${liquidLabel[state.liquidType]} 기준.<br>` +
+      `(계산값: ${rawHours.toFixed(2)} 시간)`;
+  }
+
+  // 버튼 동작
+  toStep2.addEventListener("click", () => {
+    showStep(2);
+  });
+
+  backTo1.addEventListener("click", () => {
+    showStep(1);
+  });
+
+  toStep3.addEventListener("click", () => {
+    updateResultView();
+    showStep(3);
+  });
+
+  backTo2.addEventListener("click", () => {
+    showStep(2);
+  });
+
+  againBtn.addEventListener("click", () => {
+    // 다시 계산 = 처음 단계로 이동 (값은 유지)
+    showStep(1);
+  });
+
+  // 페이지 처음 열릴 때 결과 미리 계산(물 기본값이 없으니까 - 로 시작)
+  updateResultView();
+</script>
+
+</body>
+</html>
+
